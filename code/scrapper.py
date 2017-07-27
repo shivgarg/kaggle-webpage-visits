@@ -149,7 +149,8 @@ for row in f:
     weekly_frame = get_weekly_frame(start_date, end_date, keywords)
    
     empty=weekly_frame.empty
-    if empty:
+    if not empty:
+	    empty=True     
 	    for frame in daily_frames:
 		if not frame.empty:
 			empty=False
