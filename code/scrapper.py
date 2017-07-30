@@ -47,6 +47,8 @@ def get_token(response_text):
     try:
         return response_text.split('token":"')[1].split('","')[0]
     except:
+	print 'CHANGE IP ADDRESS'
+   	sys.exit()
         return None
 
 def get_csv_request(response_text):
@@ -121,8 +123,11 @@ def stitch_frames(daily_frames, weekly_frame,start_date,end_date):
 		break
             this_date = datetime.strftime(bins[i][j],'%Y-%m-%d')
             if sum_interest !=0:
-                this_val = float(weekly_frame['Weekly_Volume'][week_start_date])*float(daily_frame['Daily_Volume'][this_date])/float(sum_interest)
-                final_data[this_date] = this_val
+		try:
+                	this_val = float(weekly_frame['Weekly_Volume'][week_start_date])*float(daily_frame['Daily_Volume'][this_date])/float(sum_interest)
+                	final_data[this_date] = this_val
+		except KeyError:
+			final_data[this_date]=0
             else:
 		final_data[this_date] = 0.0
     
@@ -134,7 +139,7 @@ def stitch_frames(daily_frames, weekly_frame,start_date,end_date):
 
     final_data_frame.to_csv('csv/{0}.csv'.format(keywords.replace('+','').replace('/','')), sep=',')
 
-
+                                                                                                                                                                                        
 f=open(sys.argv[1])
 f=csv.reader(f)
 next(f)
@@ -161,4 +166,7 @@ for row in f:
     if not empty:
 	print "stitching"
     	stitch_frames(daily_frames, weekly_frame,start_date,end_date)
-
+    else:
+	print "Writing empty file"
+	f=open('csv/'+keywords.replace('+','').replace('/','')+'.csv','w')
+	f.close()
