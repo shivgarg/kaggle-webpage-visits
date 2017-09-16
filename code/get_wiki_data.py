@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm, tqdm_notebook
 import time
 import requests
-
+import pickle
 
 SLEEP_TIME_S = 0.1
 
@@ -12,7 +12,6 @@ def extract_URL_and_Name(page):
 
 train = pd.read_csv('../data/train_1.csv')
 
-train = train.sample(2)
 
 page_data = pd.DataFrame(list(train['Page'].apply(extract_URL_and_Name)),columns=['Name', 'URL'])
 
@@ -28,7 +27,9 @@ def fetch_wikipedia_text_content(row):
 
 tqdm.pandas(tqdm_notebook)
 page_data['TextData'] = page_data.progress_apply(fetch_wikipedia_text_content, axis=1)
-print page_data
-page_data.head()
+
+f=open('wiki_data','wb')
+pickle.dump(page_data,f)
+f.close()
 
 

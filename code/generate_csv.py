@@ -25,7 +25,6 @@ def split_page_info():
 	data['country']=data.iloc[:,0].apply(lambda a: a.split('_')[-3].split('.')[0])
 	data['mode']=data.iloc[:,0].apply(lambda a: a.split('_')[-2])
 	data['agent']=data.iloc[:,0].apply(lambda a: a.split('_')[-1])
-#	data['Page']=data.iloc[:,0].apply(lambda a: '_'.join(a.split('_'))[:-3])
 
 	tmp=dict(zip(data['country'].unique(),range(len(data['country'].unique()))))
 	data['country']=data['country'].apply(lambda a: tmp[a])
@@ -49,42 +48,41 @@ def split_page_info():
 	data['Page']=data['Page'].apply(lambda a: tmp[a])
 
 
-def expand_data(args):
+def expand_data(i):
 	global data,start_date,end_date,lock,page_map
 	filename=sys.argv[2]
-	i=args
 	print i
 	tmp=[]
+
+	# Extracting country, mode, agent values 
 	page_info=data.iloc[i].filter(['country','mode','agent']).values.tolist()
+
+	# Extracting webpage visits value, taking log and clipping them 
 	visits=log(np.array(data.loc[i,start_date:end_date].values))
 	np.clip(visits,np.percentile(visits,10),np.percentile(visits,90))
+	
+	#constructing training samples
+	# Country, mode, agenet, day, month, weekday, days offset
 	start=datetime.datetime.strptime(start_date,'%Y-%m-%d')
-	if os.path.isfile('models_60/'+str(page_map[data.iloc[i,0]])):
-		prophet_pred=pickle.load(open('models_60/'+page_map[data.iloc[i,0]],'rb'))
-		prophet_date=pickle.load(open('models_60/'+page_map[data.iloc[i,0]]+'.date','rb'))
-		prophet_pred_ind=0
-	else:
-		prophet_pred_ind=-1
 	for j in visits:
-		if (prophet_pred_ind > -1) and (prophet_pred_ind < len(prophet_date)) and (start.strftime('%Y-%m-%d')==prophet_date[prophet_pred_ind]):
-			tmp.append(page_info+[j,start.day,start.month,start.weekday(),np.log(prophet_pred.iloc[prophet_pred_ind]['yhat'] if prophet_pred.iloc[prophet_pred_ind]['yhat'] > 0 else np.exp(-2.5))])
-			prophet_pred_ind+=1
-		else:
-			tmp.append(page_info+[j,start.day,start.month,start.weekday(),-2.5])
-
+		tmp.append(page_info+[j,start.day,start.month,start.weekday(),(start-datetime.datetime(start.year,1,1)).days])
 		start+=datetime.timedelta(1)
-	tmp=pd.DataFrame(tmp,columns=['country','mode','agent','visits','day','month','weekday','fb_prophet'])
+	
+	tmp=pd.DataFrame(tmp,columns=['country','mode','agent','visits','day','month','weekday','offset'])
+
+	# Adding rolling mean and median fields
 	tmp['mean_7']=tmp['visits'].shift().rolling(7).mean()
 	tmp['mean_30']=tmp['visits'].shift().rolling(30).mean()
 	tmp['median_30']=tmp['visits'].shift().rolling(30).median()
 	tmp['median_45']=tmp['visits'].shift().rolling(45).median()
-#	for i in xrange(7):
-#		tmp[str(i)]=tmp['visits'].shift(i+1)
+	tmp['median_15']=tmp['visits'].shift().rolling(15).median()
+	tmp['median_60']=tmp['visits'].shift().rolling(60).median()
+
 	tmp.fillna(-1.5,inplace=True)
 	lock.acquire()
-	columns=['country','mode','agent','day','month','weekday','fb_prophet','mean_7','mean_30','median_30','median_45']
-#	for i in xrange(7):
-#		columns.append(str(i))
+
+	#setting order of columns for csv file
+	columns=['country','mode','agent','day','month','weekday','offset','mean_7','mean_30','median_15','median_30','median_45','median_60']
 	columns.append('visits')
 	if not os.path.isfile(filename):
 		tmp.to_csv(filename,index=False,columns=columns)
@@ -99,12 +97,6 @@ read_data(sys.argv[1])
 split_page_info()
 lock=multiprocessing.Lock()
 pool=multiprocessing.Pool(int(sys.argv[3]))
-#arr=[[sys.argv[2],i] for i in xrange(len(data))]
-#print arr
 pool.map(expand_data,range(len(data)))
 pool.close()
 pool.join()
-#expand_data(sys.argv[2])
-
-#for i in range(len(data)):
-#	expand_data(i)

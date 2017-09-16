@@ -3,14 +3,26 @@ import sys
 import csv
 import datetime
 from sklearn.linear_model import ElasticNetCV
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import AdaBoostRegressor
 import pickle
 from numpy import median,mean
 from operator import itemgetter
 import numpy as np
+from xgboost import XGBRegressor
+from keras.models import Sequential
+from keras.layers import Dense,Dropout,Activation
+from tensorflow.contrib.keras.python.keras import backend as K
+
+
 data=''
 page_map=dict()
 test_data=''
 model=''
+
+def sample_mean_absolute_percentage_error(y_true, y_pred):
+	diff = K.abs((y_true - y_pred) / K.clip(K.abs(y_true)+K.abs(y_pred), K.epsilon(), None))
+	return 200. * K.mean(diff, axis=-1)
 
 def prep_data():
 	global data,page_map,test_data
@@ -29,14 +41,26 @@ def prep_data():
 
 def train():
 	global model
+	columns=['country','mode','agent','day','month','weekday','mean_7','mean_30','median_30','median_45']
 	processed_data=pd.read_csv(sys.argv[3])
 	Y=processed_data['visits'].values
-	columns=['country','mode','agent','day','month','weekday','mean_30','median_30','median_45']
 	X=processed_data.loc[:,columns].values
 	print "read X and Y"
-	model=ElasticNetCV(fit_intercept=False,normalize=False,cv=5,copy_X=False,verbose=5,l1_ratio=[0.1,0.3,0.5,0.7,0.9,1],alphas=[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],n_jobs=4)
-	model.fit(X,Y)
+	model=Sequential()
+	model.add(Dense(64, input_dim=X.shape[1], activation='linear'))
+	model.add(Dropout(0.5))
+	model.add(Dense(64, activation='linear'))
+	model.add(Dropout(0.5))
+	model.add(Dense(1, activation='linear'))
+	model.compile(optimizer='rms',
+              loss=sample_mean_absolute_percentage_error)
 
+	model.fit(X,Y,epochs=10)
+
+def get_prophet_value(page,index):
+	forecast=open('models_60/'+page,'rb')
+	forecast=pickle.load(forecast)
+	return forecast.iloc[index]['yhat']
 
 def test():
 	global test_data,data,page_map,model
@@ -63,7 +87,6 @@ def test():
 		tmp['country']=tmp.iloc[:,0].apply(lambda a: a.split('_')[-3].split('.')[0])
 		tmp['mode']=tmp.iloc[:,0].apply(lambda a: a.split('_')[-2])
 		tmp['agent']=tmp.iloc[:,0].apply(lambda a: a.split('_')[-1])
-
 		tmp['country']=tmp['country'].apply(lambda a: country_map[a])
 
 		tmp['mode']=tmp['mode'].apply(lambda a: mode_map[a])
@@ -73,14 +96,21 @@ def test():
 		tmp['day']=start_date.day
 		tmp['month']=start_date.month
 		tmp['weekday']=start_date.weekday()
+		tmp['mean_7']=map(lambda a:mean(np.log(a[-7:])),itemgetter(*[page_map[name] for name in tmp['Page']])(data))
 		tmp['mean_30']=map(lambda a:mean(np.log(a[-30:])),itemgetter(*[page_map[name] for name in tmp['Page']])(data))
 		tmp['median_30']=map(lambda a:median(np.log(a[-30:])),itemgetter(*[page_map[name] for name in tmp['Page']])(data))
 		tmp['median_45']=map(lambda a:median(np.log(a[-45:])),itemgetter(*[page_map[name] for name in tmp['Page']])(data))
-		columns=['country','mode','agent','day','month','weekday','mean_30','median_30','median_45']
-		pred=model.predict(tmp.loc[:,columns].values)
 		
+		columns=['country','mode','agent','day','month','weekday','mean_7','mean_30','median_30','median_45']
+		pred=model.predict(tmp.loc[:,columns].values)
+		pred=np.nan_to_num(pred)
+		if len(pred) != len(tmp):
+			print "pred"
+			print pred
+			print "tmp"
+			print tmp
+			exit(0)
 		tmp['Visits']=np.exp(pred)
-		print pred
 		ans=ans.append(tmp.loc[:,['Id','Visits']],ignore_index=True)
 		ind=0
 		for name in tmp['Page']:
