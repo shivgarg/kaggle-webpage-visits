@@ -15,13 +15,21 @@ Features that were used to get a forecast for a day were Wikipedia domain, acces
 To use the code , you need to install certain python packages. Most of the packages are available on python pip. The python packages installed via pip are :-
 * scikit-learn
 * keras with tensorflow backend 
-* nmupy
+* numpy
 * pandas
+
 The xgboost package was installed by following these [instructions](https://xgboost.readthedocs.io/en/latest/build.html#python-package-installation). 
 
 ### Running Code
-1. python generate\_csv.py <raw training data> <processed file name> <no. of threads>
-2. python model\_<model_name>.py <raw training data> <key file> <processed file> <output file>
+1. `python generate_csv.py <raw training data> <processed file name> <no. of threads>`
+2. `python model_<model_name>.py <raw training data> <key file> <processed file> <output file>`
 
 The predictions will be given as output in the required format in the output file 
+
+## Other Approaches
+Some approaches which could not have been tried but can give good or even better results are :-
+
+* Use RNN's : RNN's are good for accumulating data which is in a serial fashion. LSTM's / GRU's can give good results. Many good submissions used LSTM's/GRU's
+* Combine pages by fetching wiki article and use clustering data and train a model for all webpages in a cluster. Different clustering criteria can be used like wiki page data, page domain and use ensembles of these models to arrive at final answer. A python script is in the repo to fetch the wiki article data.
+* The wiki page visits can show a strong correlation to web page searches and search trends. The search topics that have been rising for a few days can indicate a growth in wikipedia page views. 
 
